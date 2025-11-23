@@ -5,7 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>中國主要都市地圖填空測驗</title>
     
-    <script src="https://cdn.jsdelivr.net/npm/drag-drop-touch@1.3.3/DragDropTouch.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/default.css">
+    <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js"></script>
+    
+    <script>
+        // 設定 Polyfill 選項，確保在拖曳時能正確計算位置
+        MobileDragDrop.polyfill({
+            // 使用預設的捲動行為處理
+            dragImageTranslateOverride: MobileDragDrop.scrollBehaviourDragImageTranslateOverride
+        });
+        
+        // 解決 iOS Safari 上可能的捲動衝突問題 (雖然這次主要是修 Android，但加著保險)
+        window.addEventListener( 'touchmove', function() {}, {passive: false});
+    </script>
 
     <style>
         body {
@@ -14,33 +26,37 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 10px; /* 手機版 padding 縮小一點 */
-            /* 防止在手機上選取文字，避免干擾拖曳 */
+            padding: 10px;
+            /* 防止在手機上長按選取文字，避免干擾拖曳 */
             user-select: none; 
             -webkit-user-select: none;
+            /* 防止 iOS 上的長按跳出選單 */
+            -webkit-touch-callout: none;
         }
 
         h1 {
             color: #333;
-            font-size: 24px; /* 手機上標題稍微縮小 */
+            font-size: 24px;
             margin: 10px 0;
+            text-align: center;
         }
 
         #game-container {
             display: flex;
-            gap: 10px; /* 間距縮小 */
+            gap: 10px;
             background-color: white;
-            padding: 10px; /* padding 縮小 */
+            padding: 10px;
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            /* 確保容器不會超過螢幕寬度，並允許橫向捲動 (如果地圖真的太寬) */
             max-width: 100%; 
             overflow-x: auto; 
+            /* 確保容器本身在需要時可以捲動 */
+            -webkit-overflow-scrolling: touch;
         }
 
         #source-container {
-            width: 160px; /* 稍微縮窄 */
-            min-width: 160px; /* 固定最小寬度，避免被擠壓 */
+            width: 160px;
+            min-width: 160px;
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
@@ -48,15 +64,17 @@
             border-right: 2px solid #eee;
             padding-right: 10px;
             height: 593px; 
-            overflow-y: auto; 
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch; 
         }
 
         /* 來源區的字卡樣式 */
         .draggable {
-            padding: 8px 12px; /* 加大一點觸控區域 */
+            padding: 8px 12px; /* 加大觸控區域 */
             background-color: #fff;
             border: 2px solid #ffd700; 
             border-radius: 5px;
+            /* 確保滑鼠游標顯示為可抓取 */
             cursor: grab;
             font-weight: bold;
             font-size: 15px; 
@@ -64,8 +82,11 @@
             transition: all 0.2s;
             display: inline-block;
             
-            /* --- 修改重點 2: 關鍵 CSS，禁止瀏覽器預設的觸控動作(如捲動)，讓 JS 處理拖曳 --- */
-            touch-action: none; 
+            /* --- 修改重點 2: 移除了 touch-action: none --- */
+            /* 讓新的 polyfill library 來接管觸控事件，避免 Android 瀏覽器衝突 */
+            
+            /* 針對 Webkit 瀏覽器的優化 */
+            -webkit-user-drag: element;
         }
         
         /* 字卡放入地圖後的樣式 */
@@ -83,9 +104,7 @@
             justify-content: center;
             align-items: center;
             background-color: #ffffcc; 
-            /* 放入後就不需要禁止 touch-action 了，不然可能很難點擊它拖出來 */
-             touch-action: auto; 
-             cursor: grab;
+            cursor: grab;
         }
         
         /* 作答次數顏色 */
@@ -96,26 +115,15 @@
 
         .draggable:active {
             cursor: grabbing;
-            transform: scale(1.05);
-            z-index: 100; /* 拖曳時確保在最上層 */
         }
-        /* Polyfill 在拖曳時會加上這個 class，我們可以用它來加強視覺效果 */
-        .dragdrop-dragging {
-             opacity: 0.8;
-             transform: scale(1.1) !important;
-             z-index: 9999 !important;
-             box-shadow: 0 5px 15px rgba(0,0,0,0.3) !important;
-        }
-
 
         #map-container {
             position: relative;
             width: 800px; 
             height: 593px; 
-            /* 確保地圖容器不會縮小，保持原始比例 */
             min-width: 800px; 
             min-height: 593px;
-            background-image: url('image_1.png'); 
+            background-image: url('image_1.png'); /* 請確保 image_1.png 在同一目錄下 */
             background-size: cover;
             border: 2px solid #ccc;
             border-radius: 5px;
@@ -176,21 +184,20 @@
         #controls {
             margin-top: 20px;
             display: flex;
-            gap: 10px; /* 按鈕間距縮小 */
+            gap: 10px;
             align-items: center;
-            flex-wrap: wrap; /* 允許按鈕在小螢幕換行 */
+            flex-wrap: wrap;
             justify-content: center;
         }
 
         button {
-            padding: 12px 24px; /* 加大按鈕觸控區域 */
+            padding: 12px 24px;
             font-size: 16px;
             cursor: pointer;
             border: none;
             border-radius: 5px;
             font-family: "Microsoft JhengHei";
             transition: background-color 0.2s;
-            /* 防止行動裝置點擊後的藍色框框 */
             -webkit-tap-highlight-color: transparent; 
         }
 
@@ -336,27 +343,29 @@
             const sourceZone = document.getElementById('source-container');
 
             draggables.forEach(draggable => {
-                // 這裡的事件會被 Polyfill 自動觸發
                 draggable.addEventListener('dragstart', (e) => {
                     draggable.classList.add('dragging');
-                    // 修正 Firefox 的拖曳問題
+                    // 修正某些瀏覽器的拖曳資料傳遞問題
+                    e.dataTransfer.effectAllowed = 'move';
                     e.dataTransfer.setData('text/plain', draggable.id);
                 });
 
                 draggable.addEventListener('dragend', () => {
                     draggable.classList.remove('dragging');
-                     // 移除 polyfill 可能留下的 class
-                    draggable.classList.remove('dragdrop-dragging');
                 });
             });
 
             // 來源區的放置處理
             sourceZone.addEventListener('dragover', e => {
                 e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
             });
             sourceZone.addEventListener('drop', e => {
                 e.preventDefault();
-                const draggable = document.querySelector('.dragging');
+                // 使用新的 Polyfill 時，有時需要更明確地獲取拖曳元素
+                const id = e.dataTransfer.getData('text/plain');
+                const draggable = document.getElementById(id);
+
                 if (draggable && draggable.parentElement !== sourceZone) {
                     resetDraggableColor(draggable);
                     sourceZone.appendChild(draggable);
@@ -367,6 +376,8 @@
             dropZones.forEach(zone => {
                 zone.addEventListener('dragover', e => {
                     e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    
                     let hasDraggable = false;
                     for(let i=0; i<zone.children.length; i++) {
                         if(zone.children[i].classList.contains('draggable')) {
@@ -386,7 +397,9 @@
                 zone.addEventListener('drop', e => {
                     e.preventDefault();
                     zone.classList.remove('hovered');
-                    const draggable = document.querySelector('.dragging');
+                    
+                    const id = e.dataTransfer.getData('text/plain');
+                    const draggable = document.getElementById(id);
                     
                     let hasDraggable = false;
                     for(let i=0; i<zone.children.length; i++) {
@@ -435,8 +448,6 @@
                         score++;
                         zone.classList.add('correct');
                         draggable.setAttribute('draggable', 'false');
-                        // 答對後移除觸控事件，避免誤觸
-                        draggable.style.touchAction = 'auto'; 
                         draggable.style.cursor = 'default';
                     } else {
                         zone.classList.add('incorrect');
