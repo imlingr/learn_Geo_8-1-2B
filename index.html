@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>中國主要都市地圖填空測驗</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/drag-drop-touch@1.3.3/DragDropTouch.js"></script>
+
+    <style>
+        body {
+            font-family: "Microsoft JhengHei", Arial, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px; /* 手機版 padding 縮小一點 */
+            /* 防止在手機上選取文字，避免干擾拖曳 */
+            user-select: none; 
+            -webkit-user-select: none;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 24px; /* 手機上標題稍微縮小 */
+            margin: 10px 0;
+        }
+
+        #game-container {
+            display: flex;
+            gap: 10px; /* 間距縮小 */
+            background-color: white;
+            padding: 10px; /* padding 縮小 */
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            /* 確保容器不會超過螢幕寬度，並允許橫向捲動 (如果地圖真的太寬) */
+            max-width: 100%; 
+            overflow-x: auto; 
+        }
+
+        #source-container {
+            width: 160px; /* 稍微縮窄 */
+            min-width: 160px; /* 固定最小寬度，避免被擠壓 */
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-content: flex-start;
+            border-right: 2px solid #eee;
+            padding-right: 10px;
+            height: 593px; 
+            overflow-y: auto; 
+        }
+
+        /* 來源區的字卡樣式 */
+        .draggable {
+            padding: 8px 12px; /* 加大一點觸控區域 */
+            background-color: #fff;
+            border: 2px solid #ffd700; 
+            border-radius: 5px;
+            cursor: grab;
+            font-weight: bold;
+            font-size: 15px; 
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+            display: inline-block;
+            
+            /* --- 修改重點 2: 關鍵 CSS，禁止瀏覽器預設的觸控動作(如捲動)，讓 JS 處理拖曳 --- */
+            touch-action: none; 
+        }
+        
+        /* 字卡放入地圖後的樣式 */
+        .drop-zone .draggable {
+            font-size: 10px; 
+            padding: 0px; 
+            border-width: 1px; 
+            border-radius: 2px;
+            white-space: nowrap; 
+            box-shadow: none; 
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #ffffcc; 
+            /* 放入後就不需要禁止 touch-action 了，不然可能很難點擊它拖出來 */
+             touch-action: auto; 
+             cursor: grab;
+        }
+        
+        /* 作答次數顏色 */
+        .attempt-1 { color: blue; border-color: blue; }
+        .attempt-2 { color: green; border-color: green; }
+        .attempt-3 { color: orange; border-color: orange; }
+        .attempt-4 { color: hotpink; border-color: hotpink; }
+
+        .draggable:active {
+            cursor: grabbing;
+            transform: scale(1.05);
+            z-index: 100; /* 拖曳時確保在最上層 */
+        }
+        /* Polyfill 在拖曳時會加上這個 class，我們可以用它來加強視覺效果 */
+        .dragdrop-dragging {
+             opacity: 0.8;
+             transform: scale(1.1) !important;
+             z-index: 9999 !important;
+             box-shadow: 0 5px 15px rgba(0,0,0,0.3) !important;
+        }
+
+
+        #map-container {
+            position: relative;
+            width: 800px; 
+            height: 593px; 
+            /* 確保地圖容器不會縮小，保持原始比例 */
+            min-width: 800px; 
+            min-height: 593px;
+            background-image: url('image_1.png'); 
+            background-size: cover;
+            border: 2px solid #ccc;
+            border-radius: 5px;
+        }
+
+        /* 題目框樣式 */
+        .drop-zone {
+            position: absolute;
+            height: 20px; 
+            border: 1px solid #007bff; 
+            background-color: rgba(255, 255, 255, 0.8); 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 3px;
+            transition: all 0.3s;
+            z-index: 10; 
+            box-sizing: border-box; 
+        }
+        
+        .drop-zone.hovered {
+            background-color: rgba(135, 206, 235, 0.7); 
+            border-color: darkblue;
+            border-width: 2px;
+        }
+
+        /* 批閱後的狀態 */
+        .drop-zone.correct {
+            border: 2px solid green;
+            background-color: rgba(144, 238, 144, 0.8);
+            z-index: 11; 
+        }
+        
+        .drop-zone.incorrect {
+            border: 2px solid red;
+            background-color: rgba(255, 99, 71, 0.8);
+            z-index: 12; 
+        }
+
+        /* 顯示正確答案的輔助標籤 */
+        .answer-label {
+            position: absolute;
+            top: -14px; 
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            font-size: 9px;
+            color: #d32f2f;
+            font-weight: bold;
+            text-shadow: 1px 1px 0px white, -1px -1px 0px white; 
+            display: none;
+            pointer-events: none; 
+        }
+        .drop-zone.incorrect .answer-label {
+            display: block;
+        }
+
+        #controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px; /* 按鈕間距縮小 */
+            align-items: center;
+            flex-wrap: wrap; /* 允許按鈕在小螢幕換行 */
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 24px; /* 加大按鈕觸控區域 */
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            font-family: "Microsoft JhengHei";
+            transition: background-color 0.2s;
+            /* 防止行動裝置點擊後的藍色框框 */
+            -webkit-tap-highlight-color: transparent; 
+        }
+
+        #submit-btn { background-color: #4CAF50; color: white; }
+        #submit-btn:hover { background-color: #45a049; }
+        
+        #correct-btn { background-color: #FF9800; color: white; display: none;}
+        #correct-btn:hover { background-color: #e68a00; }
+
+        #retry-btn { background-color: #2196F3; color: white; display: none;}
+        #retry-btn:hover { background-color: #0b7dda; }
+
+        #score-display {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            margin: 10px 0;
+        }
+        
+        #attempt-info {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+            text-align: center;
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>中國主要都市地圖填空測驗</h1>
+
+    <div id="game-container">
+        <div id="source-container">
+            </div>
+
+        <div id="map-container">
+            </div>
+    </div>
+
+    <div id="controls">
+        <button id="submit-btn">批閱答案</button>
+        <button id="correct-btn">錯題訂正</button>
+        <button id="retry-btn">重新挑戰</button>
+        <div id="score-display">尚未批閱</div>
+    </div>
+    <div id="attempt-info">當前作答次數：第 <span id="attempt-count">1</span> 次 (字色標示)</div>
+
+    <script>
+        // 都市資料與其在地圖上的相對位置 (百分比 top, left)
+        const cityData = [
+            { name: '烏魯木齊', top: 25.5, left: 22.5 },
+            { name: '喀什', top: 32, left: 10.5 },
+            { name: '敦煌', top: 36, left: 32 },
+            { name: '拉薩', top: 60, left: 24.5 },
+            { name: '蘭州', top: 50.5, left: 47 },
+            { name: '西安', top: 55, left: 54 },
+            { name: '成都', top: 62, left: 45.5 },
+            { name: '重慶', top: 67, left: 51 },
+            { name: '鄭州', top: 49, left: 60.5 },
+            { name: '武漢', top: 59, left: 63 },
+            { name: '南京', top: 54, left: 71.5 },
+            { name: '蘇州', top: 55.5, left: 75.5 },
+            { name: '上海', top: 57.5, left: 78.5 },
+            { name: '杭州', top: 61, left: 75 },
+            { name: '福州', top: 72, left: 73.5 },
+            { name: '廈門', top: 76, left: 71.5 },
+            { name: '廣州', top: 79, left: 63 },
+            { name: '深圳', top: 80.5, left: 66 },
+            { name: '珠海', top: 81.5, left: 60.5 },
+            { name: '香港', top: 83, left: 67.5 },
+            { name: '澳門', top: 84, left: 61.5 },
+            { name: '海口', top: 89, left: 59.5 },
+            { name: '北京', top: 38, left: 63.5 },
+            { name: '天津', top: 40, left: 66.5 },
+            { name: '青島', top: 46.5, left: 70.5 },
+            { name: '大連', top: 40, left: 74.5 },
+            { name: '瀋陽', top: 32, left: 77 },
+            { name: '哈爾濱', top: 19, left: 81 }
+        ];
+
+        const targetCities = cityData.map(city => city.name);
+        const quizData = cityData;
+
+        let currentAttempt = 1;
+        const maxScore = targetCities.length;
+
+        const sourceContainer = document.getElementById('source-container');
+        const mapContainer = document.getElementById('map-container');
+        const submitBtn = document.getElementById('submit-btn');
+        const correctBtn = document.getElementById('correct-btn');
+        const retryBtn = document.getElementById('retry-btn');
+        const scoreDisplay = document.getElementById('score-display');
+        const attemptCountSpan = document.getElementById('attempt-count');
+
+        // 初始化遊戲
+        function initGame() {
+            sourceContainer.innerHTML = '';
+            mapContainer.innerHTML = '';
+            const oldImg = mapContainer.querySelector('img');
+            if(oldImg) oldImg.remove();
+
+            quizData.forEach(city => {
+                const el = document.createElement('div');
+                el.classList.add('draggable', `attempt-${currentAttempt}`);
+                el.setAttribute('draggable', 'true');
+                el.id = 'city-' + city.name;
+                el.textContent = city.name;
+                sourceContainer.appendChild(el);
+
+                // 建立放置區域
+                const dropZone = document.createElement('div');
+                dropZone.classList.add('drop-zone');
+                dropZone.style.top = city.top + '%';
+                dropZone.style.left = city.left + '%';
+                
+                // 根據字數設定寬度
+                let width = 42; // 預設3個字寬度
+                if (city.name.length > 3) width = 54; // 4個字
+                if (city.name.length <= 2) width = 32; // 2個字
+                dropZone.style.width = width + 'px';
+                dropZone.style.marginLeft = -(width / 2) + 'px';
+                dropZone.style.marginTop = '-10px';
+
+                dropZone.dataset.correctCity = city.name;
+                
+                const answerLabel = document.createElement('div');
+                answerLabel.classList.add('answer-label');
+                answerLabel.textContent = city.name;
+                dropZone.appendChild(answerLabel);
+
+                mapContainer.appendChild(dropZone);
+            });
+
+            setupDragAndDrop();
+            updateAttemptUI();
+        }
+
+        // 設定拖曳事件
+        function setupDragAndDrop() {
+            const draggables = document.querySelectorAll('.draggable');
+            const dropZones = document.querySelectorAll('.drop-zone');
+            const sourceZone = document.getElementById('source-container');
+
+            draggables.forEach(draggable => {
+                // 這裡的事件會被 Polyfill 自動觸發
+                draggable.addEventListener('dragstart', (e) => {
+                    draggable.classList.add('dragging');
+                    // 修正 Firefox 的拖曳問題
+                    e.dataTransfer.setData('text/plain', draggable.id);
+                });
+
+                draggable.addEventListener('dragend', () => {
+                    draggable.classList.remove('dragging');
+                     // 移除 polyfill 可能留下的 class
+                    draggable.classList.remove('dragdrop-dragging');
+                });
+            });
+
+            // 來源區的放置處理
+            sourceZone.addEventListener('dragover', e => {
+                e.preventDefault();
+            });
+            sourceZone.addEventListener('drop', e => {
+                e.preventDefault();
+                const draggable = document.querySelector('.dragging');
+                if (draggable && draggable.parentElement !== sourceZone) {
+                    resetDraggableColor(draggable);
+                    sourceZone.appendChild(draggable);
+                }
+            });
+
+            // 地圖格子的放置處理
+            dropZones.forEach(zone => {
+                zone.addEventListener('dragover', e => {
+                    e.preventDefault();
+                    let hasDraggable = false;
+                    for(let i=0; i<zone.children.length; i++) {
+                        if(zone.children[i].classList.contains('draggable')) {
+                            hasDraggable = true;
+                            break;
+                        }
+                    }
+                    if (!hasDraggable) { 
+                        zone.classList.add('hovered');
+                    }
+                });
+
+                zone.addEventListener('dragleave', () => {
+                    zone.classList.remove('hovered');
+                });
+
+                zone.addEventListener('drop', e => {
+                    e.preventDefault();
+                    zone.classList.remove('hovered');
+                    const draggable = document.querySelector('.dragging');
+                    
+                    let hasDraggable = false;
+                    for(let i=0; i<zone.children.length; i++) {
+                        if(zone.children[i].classList.contains('draggable')) {
+                            hasDraggable = true;
+                            break;
+                        }
+                    }
+
+                    if (draggable && !hasDraggable) {
+                        resetDraggableColor(draggable);
+                        zone.appendChild(draggable);
+                    }
+                });
+            });
+        }
+        
+        function resetDraggableColor(draggable) {
+             draggable.classList.remove('attempt-1', 'attempt-2', 'attempt-3', 'attempt-4');
+             let colorClass = `attempt-${currentAttempt > 4 ? 4 : currentAttempt}`;
+             draggable.classList.add(colorClass);
+        }
+
+        function updateAttemptUI() {
+            attemptCountSpan.textContent = currentAttempt;
+            let color = 'blue';
+            if (currentAttempt === 2) color = 'green';
+            else if (currentAttempt === 3) color = 'orange';
+            else if (currentAttempt >= 4) color = 'hotpink';
+            attemptCountSpan.style.color = color;
+        }
+
+        // 批閱功能
+        submitBtn.addEventListener('click', () => {
+            let score = 0;
+            const dropZones = document.querySelectorAll('.drop-zone');
+            let allFilled = true;
+
+            dropZones.forEach(zone => {
+                zone.classList.remove('correct', 'incorrect');
+                const draggable = zone.querySelector('.draggable');
+                const correctCity = zone.dataset.correctCity;
+
+                if (draggable) {
+                    if (draggable.textContent === correctCity) {
+                        score++;
+                        zone.classList.add('correct');
+                        draggable.setAttribute('draggable', 'false');
+                        // 答對後移除觸控事件，避免誤觸
+                        draggable.style.touchAction = 'auto'; 
+                        draggable.style.cursor = 'default';
+                    } else {
+                        zone.classList.add('incorrect');
+                    }
+                } else {
+                    zone.classList.add('incorrect');
+                    allFilled = false;
+                }
+            });
+
+            scoreDisplay.textContent = `得分：${score} / ${maxScore}`;
+            submitBtn.style.display = 'none';
+            correctBtn.style.display = 'inline-block';
+            retryBtn.style.display = 'inline-block';
+        });
+
+        // 錯題訂正功能
+        correctBtn.addEventListener('click', () => {
+            currentAttempt++;
+            updateAttemptUI();
+            
+            const dropZones = document.querySelectorAll('.drop-zone');
+            dropZones.forEach(zone => {
+                if (zone.classList.contains('incorrect')) {
+                    const draggable = zone.querySelector('.draggable');
+                    if (draggable) {
+                        sourceContainer.appendChild(draggable);
+                        resetDraggableColor(draggable);
+                    }
+                    zone.classList.remove('incorrect');
+                }
+            });
+            
+            const sourceDraggables = sourceContainer.querySelectorAll('.draggable');
+            sourceDraggables.forEach(drag => {
+                 resetDraggableColor(drag);
+            });
+
+            scoreDisplay.textContent = '訂正中...';
+            submitBtn.style.display = 'inline-block';
+            correctBtn.style.display = 'none';
+        });
+
+        // 重新挑戰功能
+        retryBtn.addEventListener('click', () => {
+            if (confirm("確定要重新開始嗎？所有進度將會遺失。")) {
+                currentAttempt = 1;
+                scoreDisplay.textContent = '尚未批閱';
+                submitBtn.style.display = 'inline-block';
+                correctBtn.style.display = 'none';
+                retryBtn.style.display = 'none';
+                initGame();
+            }
+        });
+
+        initGame();
+
+    </script>
+</body>
+</html>
