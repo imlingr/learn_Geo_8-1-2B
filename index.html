@@ -4,20 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>中國主要都市地圖填空測驗</title>
-    
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/default.css">
-    <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js"></script>
-    
-    <script>
-        // 設定 Polyfill 選項，確保在拖曳時能正確計算位置
-        MobileDragDrop.polyfill({
-            // 使用預設的捲動行為處理
-            dragImageTranslateOverride: MobileDragDrop.scrollBehaviourDragImageTranslateOverride
-        });
-        
-        // 解決 iOS Safari 上可能的捲動衝突問題 (雖然這次主要是修 Android，但加著保險)
-        window.addEventListener( 'touchmove', function() {}, {passive: false});
-    </script>
 
     <style>
         body {
@@ -27,11 +13,9 @@
             flex-direction: column;
             align-items: center;
             padding: 10px;
-            /* 防止在手機上長按選取文字，避免干擾拖曳 */
+            /* 防止在手機上長按選取文字 */
             user-select: none; 
             -webkit-user-select: none;
-            /* 防止 iOS 上的長按跳出選單 */
-            -webkit-touch-callout: none;
         }
 
         h1 {
@@ -50,7 +34,6 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             max-width: 100%; 
             overflow-x: auto; 
-            /* 確保容器本身在需要時可以捲動 */
             -webkit-overflow-scrolling: touch;
         }
 
@@ -69,28 +52,31 @@
         }
 
         /* 來源區的字卡樣式 */
-        .draggable {
-            padding: 8px 12px; /* 加大觸控區域 */
+        .word-card {
+            padding: 8px 12px;
             background-color: #fff;
             border: 2px solid #ffd700; 
             border-radius: 5px;
-            /* 確保滑鼠游標顯示為可抓取 */
-            cursor: grab;
+            cursor: pointer; /* 改為手指游標 */
             font-weight: bold;
             font-size: 15px; 
             box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
             transition: all 0.2s;
             display: inline-block;
-            
-            /* --- 修改重點 2: 移除了 touch-action: none --- */
-            /* 讓新的 polyfill library 來接管觸控事件，避免 Android 瀏覽器衝突 */
-            
-            /* 針對 Webkit 瀏覽器的優化 */
-            -webkit-user-drag: element;
+        }
+
+        /* --- 新增：被選中時的樣式 (紅色) --- */
+        .word-card.selected-active,
+        .drop-zone.selected-active {
+            border-color: red !important;
+            background-color: #ffecec !important;
+            box-shadow: 0 0 8px rgba(255, 0, 0, 0.5);
+            transform: scale(1.05);
+            z-index: 100;
         }
         
         /* 字卡放入地圖後的樣式 */
-        .drop-zone .draggable {
+        .drop-zone .word-card {
             font-size: 10px; 
             padding: 0px; 
             border-width: 1px; 
@@ -104,7 +90,7 @@
             justify-content: center;
             align-items: center;
             background-color: #ffffcc; 
-            cursor: grab;
+            cursor: pointer;
         }
         
         /* 作答次數顏色 */
@@ -113,17 +99,13 @@
         .attempt-3 { color: orange; border-color: orange; }
         .attempt-4 { color: hotpink; border-color: hotpink; }
 
-        .draggable:active {
-            cursor: grabbing;
-        }
-
         #map-container {
             position: relative;
             width: 800px; 
             height: 593px; 
             min-width: 800px; 
             min-height: 593px;
-            background-image: url('image_1.png'); /* 請確保 image_1.png 在同一目錄下 */
+            background-image: url('image_1.png'); 
             background-size: cover;
             border: 2px solid #ccc;
             border-radius: 5px;
@@ -142,19 +124,15 @@
             transition: all 0.3s;
             z-index: 10; 
             box-sizing: border-box; 
+            cursor: pointer; /* 改為手指游標 */
         }
         
-        .drop-zone.hovered {
-            background-color: rgba(135, 206, 235, 0.7); 
-            border-color: darkblue;
-            border-width: 2px;
-        }
-
         /* 批閱後的狀態 */
         .drop-zone.correct {
             border: 2px solid green;
             background-color: rgba(144, 238, 144, 0.8);
             z-index: 11; 
+            pointer-events: none; /* 答對後鎖定，不可再點擊 */
         }
         
         .drop-zone.incorrect {
@@ -224,9 +202,72 @@
             text-align: center;
         }
 
+        /* --- 作答說明彈窗樣式 --- */
+        #instruction-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        #instruction-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 90%;
+            width: 500px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        #instruction-content h2 {
+            margin-top: 0;
+            color: #333;
+            text-align: center;
+        }
+        #instruction-content ul {
+            text-align: left;
+            line-height: 1.8;
+            font-size: 16px;
+            color: #555;
+        }
+        #instruction-content li {
+            margin-bottom: 10px;
+        }
+        #start-game-btn {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        #start-game-btn:hover { background-color: #0b7dda; }
+
     </style>
 </head>
 <body>
+
+    <div id="instruction-modal">
+        <div id="instruction-content">
+            <h2>作答說明</h2>
+            <ul>
+                <li><strong>點選配對：</strong>請先點選左側的「字卡」，再點選地圖上的「藍色題框」進行作答（反之亦可）。</li>
+                <li><strong>紅色標示：</strong>被點選中的字卡或題框會變成紅色，表示準備配對。</li>
+                <li><strong>清除答案：</strong>若想更改答案，請在已填入的題框上<strong>快速點兩下 (雙擊)</strong>，字卡即會回到選單區。</li>
+                <li><strong>計分規則：</strong>共28題，答錯後可進行訂正，不同作答次數會顯示不同顏色。</li>
+            </ul>
+            <button id="start-game-btn">開始作答</button>
+        </div>
+    </div>
 
     <h1>中國主要都市地圖填空測驗</h1>
 
@@ -275,236 +316,4 @@
             { name: '天津', top: 40, left: 66.5 },
             { name: '青島', top: 46.5, left: 70.5 },
             { name: '大連', top: 40, left: 74.5 },
-            { name: '瀋陽', top: 32, left: 77 },
-            { name: '哈爾濱', top: 19, left: 81 }
-        ];
-
-        const targetCities = cityData.map(city => city.name);
-        const quizData = cityData;
-
-        let currentAttempt = 1;
-        const maxScore = targetCities.length;
-
-        const sourceContainer = document.getElementById('source-container');
-        const mapContainer = document.getElementById('map-container');
-        const submitBtn = document.getElementById('submit-btn');
-        const correctBtn = document.getElementById('correct-btn');
-        const retryBtn = document.getElementById('retry-btn');
-        const scoreDisplay = document.getElementById('score-display');
-        const attemptCountSpan = document.getElementById('attempt-count');
-
-        // 初始化遊戲
-        function initGame() {
-            sourceContainer.innerHTML = '';
-            mapContainer.innerHTML = '';
-            const oldImg = mapContainer.querySelector('img');
-            if(oldImg) oldImg.remove();
-
-            quizData.forEach(city => {
-                const el = document.createElement('div');
-                el.classList.add('draggable', `attempt-${currentAttempt}`);
-                el.setAttribute('draggable', 'true');
-                el.id = 'city-' + city.name;
-                el.textContent = city.name;
-                sourceContainer.appendChild(el);
-
-                // 建立放置區域
-                const dropZone = document.createElement('div');
-                dropZone.classList.add('drop-zone');
-                dropZone.style.top = city.top + '%';
-                dropZone.style.left = city.left + '%';
-                
-                // 根據字數設定寬度
-                let width = 42; // 預設3個字寬度
-                if (city.name.length > 3) width = 54; // 4個字
-                if (city.name.length <= 2) width = 32; // 2個字
-                dropZone.style.width = width + 'px';
-                dropZone.style.marginLeft = -(width / 2) + 'px';
-                dropZone.style.marginTop = '-10px';
-
-                dropZone.dataset.correctCity = city.name;
-                
-                const answerLabel = document.createElement('div');
-                answerLabel.classList.add('answer-label');
-                answerLabel.textContent = city.name;
-                dropZone.appendChild(answerLabel);
-
-                mapContainer.appendChild(dropZone);
-            });
-
-            setupDragAndDrop();
-            updateAttemptUI();
-        }
-
-        // 設定拖曳事件
-        function setupDragAndDrop() {
-            const draggables = document.querySelectorAll('.draggable');
-            const dropZones = document.querySelectorAll('.drop-zone');
-            const sourceZone = document.getElementById('source-container');
-
-            draggables.forEach(draggable => {
-                draggable.addEventListener('dragstart', (e) => {
-                    draggable.classList.add('dragging');
-                    // 修正某些瀏覽器的拖曳資料傳遞問題
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData('text/plain', draggable.id);
-                });
-
-                draggable.addEventListener('dragend', () => {
-                    draggable.classList.remove('dragging');
-                });
-            });
-
-            // 來源區的放置處理
-            sourceZone.addEventListener('dragover', e => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-            });
-            sourceZone.addEventListener('drop', e => {
-                e.preventDefault();
-                // 使用新的 Polyfill 時，有時需要更明確地獲取拖曳元素
-                const id = e.dataTransfer.getData('text/plain');
-                const draggable = document.getElementById(id);
-
-                if (draggable && draggable.parentElement !== sourceZone) {
-                    resetDraggableColor(draggable);
-                    sourceZone.appendChild(draggable);
-                }
-            });
-
-            // 地圖格子的放置處理
-            dropZones.forEach(zone => {
-                zone.addEventListener('dragover', e => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    
-                    let hasDraggable = false;
-                    for(let i=0; i<zone.children.length; i++) {
-                        if(zone.children[i].classList.contains('draggable')) {
-                            hasDraggable = true;
-                            break;
-                        }
-                    }
-                    if (!hasDraggable) { 
-                        zone.classList.add('hovered');
-                    }
-                });
-
-                zone.addEventListener('dragleave', () => {
-                    zone.classList.remove('hovered');
-                });
-
-                zone.addEventListener('drop', e => {
-                    e.preventDefault();
-                    zone.classList.remove('hovered');
-                    
-                    const id = e.dataTransfer.getData('text/plain');
-                    const draggable = document.getElementById(id);
-                    
-                    let hasDraggable = false;
-                    for(let i=0; i<zone.children.length; i++) {
-                        if(zone.children[i].classList.contains('draggable')) {
-                            hasDraggable = true;
-                            break;
-                        }
-                    }
-
-                    if (draggable && !hasDraggable) {
-                        resetDraggableColor(draggable);
-                        zone.appendChild(draggable);
-                    }
-                });
-            });
-        }
-        
-        function resetDraggableColor(draggable) {
-             draggable.classList.remove('attempt-1', 'attempt-2', 'attempt-3', 'attempt-4');
-             let colorClass = `attempt-${currentAttempt > 4 ? 4 : currentAttempt}`;
-             draggable.classList.add(colorClass);
-        }
-
-        function updateAttemptUI() {
-            attemptCountSpan.textContent = currentAttempt;
-            let color = 'blue';
-            if (currentAttempt === 2) color = 'green';
-            else if (currentAttempt === 3) color = 'orange';
-            else if (currentAttempt >= 4) color = 'hotpink';
-            attemptCountSpan.style.color = color;
-        }
-
-        // 批閱功能
-        submitBtn.addEventListener('click', () => {
-            let score = 0;
-            const dropZones = document.querySelectorAll('.drop-zone');
-            let allFilled = true;
-
-            dropZones.forEach(zone => {
-                zone.classList.remove('correct', 'incorrect');
-                const draggable = zone.querySelector('.draggable');
-                const correctCity = zone.dataset.correctCity;
-
-                if (draggable) {
-                    if (draggable.textContent === correctCity) {
-                        score++;
-                        zone.classList.add('correct');
-                        draggable.setAttribute('draggable', 'false');
-                        draggable.style.cursor = 'default';
-                    } else {
-                        zone.classList.add('incorrect');
-                    }
-                } else {
-                    zone.classList.add('incorrect');
-                    allFilled = false;
-                }
-            });
-
-            scoreDisplay.textContent = `得分：${score} / ${maxScore}`;
-            submitBtn.style.display = 'none';
-            correctBtn.style.display = 'inline-block';
-            retryBtn.style.display = 'inline-block';
-        });
-
-        // 錯題訂正功能
-        correctBtn.addEventListener('click', () => {
-            currentAttempt++;
-            updateAttemptUI();
-            
-            const dropZones = document.querySelectorAll('.drop-zone');
-            dropZones.forEach(zone => {
-                if (zone.classList.contains('incorrect')) {
-                    const draggable = zone.querySelector('.draggable');
-                    if (draggable) {
-                        sourceContainer.appendChild(draggable);
-                        resetDraggableColor(draggable);
-                    }
-                    zone.classList.remove('incorrect');
-                }
-            });
-            
-            const sourceDraggables = sourceContainer.querySelectorAll('.draggable');
-            sourceDraggables.forEach(drag => {
-                 resetDraggableColor(drag);
-            });
-
-            scoreDisplay.textContent = '訂正中...';
-            submitBtn.style.display = 'inline-block';
-            correctBtn.style.display = 'none';
-        });
-
-        // 重新挑戰功能
-        retryBtn.addEventListener('click', () => {
-            if (confirm("確定要重新開始嗎？所有進度將會遺失。")) {
-                currentAttempt = 1;
-                scoreDisplay.textContent = '尚未批閱';
-                submitBtn.style.display = 'inline-block';
-                correctBtn.style.display = 'none';
-                retryBtn.style.display = 'none';
-                initGame();
-            }
-        });
-
-        initGame();
-
-    </script>
-</body>
-</html>
+            { name: '瀋陽', top: 32, left:
