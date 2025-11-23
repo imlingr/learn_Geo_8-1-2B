@@ -4,11 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>中國主要都市地圖填空測驗</title>
-
+    
     <style>
+        :root {
+            --primary-color: #007bff;
+            --highlight-color: #ff0000; /* 選取時的紅色 */
+            --bg-color: #f0f2f5;
+        }
+
         body {
             font-family: "Microsoft JhengHei", Arial, sans-serif;
-            background-color: #f0f2f5;
+            background-color: var(--bg-color);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -16,6 +22,8 @@
             /* 防止在手機上長按選取文字 */
             user-select: none; 
             -webkit-user-select: none;
+            /* 防止 iOS 上的長按跳出選單 */
+            -webkit-touch-callout: none;
         }
 
         h1 {
@@ -24,6 +32,77 @@
             margin: 10px 0;
             text-align: center;
         }
+
+        /* --- 作答說明導引頁樣式 --- */
+        #instruction-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #instruction-box {
+            background-color: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 90%;
+            width: 500px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+
+        #instruction-box h2 {
+            margin-top: 0;
+            color: var(--primary-color);
+        }
+
+        .instruction-step {
+            margin: 20px 0;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .icon-group {
+            display: inline-flex;
+            align-items: center;
+            background-color: #f9f9f9;
+            padding: 5px 10px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+
+        .instruct-icon { font-size: 24px; }
+        .instruct-text { font-weight: bold; margin: 0 5px; color: #555; }
+        .arrow { font-size: 24px; color: var(--primary-color); }
+
+        #start-game-btn {
+            margin-top: 20px;
+            padding: 15px 40px;
+            font-size: 20px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+        }
+
+        #start-game-btn:hover {
+            background-color: #0056b3;
+            transform: scale(1.05);
+        }
+        /* ------------------------ */
+
 
         #game-container {
             display: flex;
@@ -52,7 +131,7 @@
         }
 
         /* 來源區的字卡樣式 */
-        .word-card {
+        .card {
             padding: 8px 12px;
             background-color: #fff;
             border: 2px solid #ffd700; 
@@ -63,20 +142,18 @@
             box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
             transition: all 0.2s;
             display: inline-block;
-        }
-
-        /* --- 新增：被選中時的樣式 (紅色) --- */
-        .word-card.selected-active,
-        .drop-zone.selected-active {
-            border-color: red !important;
-            background-color: #ffecec !important;
-            box-shadow: 0 0 8px rgba(255, 0, 0, 0.5);
-            transform: scale(1.05);
-            z-index: 100;
+            -webkit-tap-highlight-color: transparent;
         }
         
+        /* 被選中的字卡或題框樣式 */
+        .selected {
+            border-color: var(--highlight-color) !important;
+            box-shadow: 0 0 10px var(--highlight-color) !important;
+            transform: scale(1.05);
+        }
+
         /* 字卡放入地圖後的樣式 */
-        .drop-zone .word-card {
+        .drop-zone .card {
             font-size: 10px; 
             padding: 0px; 
             border-width: 1px; 
@@ -105,7 +182,7 @@
             height: 593px; 
             min-width: 800px; 
             min-height: 593px;
-            background-image: url('image_1.png'); 
+            background-image: url('image_1.png'); /* 請確保 image_1.png 在同一目錄下 */
             background-size: cover;
             border: 2px solid #ccc;
             border-radius: 5px;
@@ -115,7 +192,7 @@
         .drop-zone {
             position: absolute;
             height: 20px; 
-            border: 1px solid #007bff; 
+            border: 1px solid var(--primary-color); 
             background-color: rgba(255, 255, 255, 0.8); 
             display: flex;
             justify-content: center;
@@ -123,8 +200,9 @@
             border-radius: 3px;
             transition: all 0.3s;
             z-index: 10; 
-            box-sizing: border-box; 
+            box-sizing: border-box;
             cursor: pointer; /* 改為手指游標 */
+            -webkit-tap-highlight-color: transparent;
         }
         
         /* 批閱後的狀態 */
@@ -168,7 +246,7 @@
             justify-content: center;
         }
 
-        button {
+        .control-btn {
             padding: 12px 24px;
             font-size: 16px;
             cursor: pointer;
@@ -202,72 +280,45 @@
             text-align: center;
         }
 
-        /* --- 作答說明彈窗樣式 --- */
-        #instruction-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.7);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-        }
-        #instruction-content {
-            background-color: white;
-            padding: 30px;
-            border-radius: 10px;
-            max-width: 90%;
-            width: 500px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }
-        #instruction-content h2 {
-            margin-top: 0;
-            color: #333;
-            text-align: center;
-        }
-        #instruction-content ul {
-            text-align: left;
-            line-height: 1.8;
-            font-size: 16px;
-            color: #555;
-        }
-        #instruction-content li {
-            margin-bottom: 10px;
-        }
-        #start-game-btn {
-            display: block;
-            width: 100%;
-            padding: 15px;
-            background-color: #2196F3;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 20px;
-        }
-        #start-game-btn:hover { background-color: #0b7dda; }
-
     </style>
 </head>
 <body>
 
-    <div id="instruction-modal">
-        <div id="instruction-content">
-            <h2>作答說明</h2>
-            <ul>
-                <li><strong>點選配對：</strong>請先點選左側的「字卡」，再點選地圖上的「藍色題框」進行作答（反之亦可）。</li>
-                <li><strong>紅色標示：</strong>被點選中的字卡或題框會變成紅色，表示準備配對。</li>
-                <li><strong>清除答案：</strong>若想更改答案，請在已填入的題框上<strong>快速點兩下 (雙擊)</strong>，字卡即會回到選單區。</li>
-                <li><strong>計分規則：</strong>共28題，答錯後可進行訂正，不同作答次數會顯示不同顏色。</li>
-            </ul>
-            <button id="start-game-btn">開始作答</button>
+    <div id="instruction-overlay">
+        <div id="instruction-box">
+            <h2>📜 作答方式說明</h2>
+            
+            <div class="instruction-step">
+                <div class="icon-group">
+                    <span class="instruct-icon">👆</span>
+                    <span class="instruct-text">點選「題框」</span>
+                    <span class="instruct-text" style="color:red;">(變紅)</span>
+                </div>
+                <span class="arrow">➕</span>
+                <div class="icon-group">
+                    <span class="instruct-icon">👆</span>
+                    <span class="instruct-text">點選「字卡」</span>
+                </div>
+                <span class="arrow">➡️</span>
+                <span class="instruct-text">完成配對 (反之亦可)</span>
+            </div>
+
+            <div class="instruction-step" style="margin-top: 30px;">
+                <div class="icon-group">
+                    <span class="instruct-icon">👆👆</span>
+                    <span class="instruct-text">連點兩下「已答字卡」</span>
+                </div>
+                <span class="arrow">➡️</span>
+                <div class="icon-group">
+                    <span class="instruct-icon">↩️</span>
+                    <span class="instruct-text">清除答案，字卡歸位</span>
+                </div>
+            </div>
+
+            <button id="start-game-btn">我知道了，開始作答！</button>
         </div>
     </div>
+
 
     <h1>中國主要都市地圖填空測驗</h1>
 
@@ -280,14 +331,19 @@
     </div>
 
     <div id="controls">
-        <button id="submit-btn">批閱答案</button>
-        <button id="correct-btn">錯題訂正</button>
-        <button id="retry-btn">重新挑戰</button>
+        <button id="submit-btn" class="control-btn">批閱答案</button>
+        <button id="correct-btn" class="control-btn">錯題訂正</button>
+        <button id="retry-btn" class="control-btn">重新挑戰</button>
         <div id="score-display">尚未批閱</div>
     </div>
     <div id="attempt-info">當前作答次數：第 <span id="attempt-count">1</span> 次 (字色標示)</div>
 
     <script>
+        // 關閉導引頁
+        document.getElementById('start-game-btn').addEventListener('click', function() {
+            document.getElementById('instruction-overlay').style.display = 'none';
+        });
+
         // 都市資料與其在地圖上的相對位置 (百分比 top, left)
         const cityData = [
             { name: '烏魯木齊', top: 25.5, left: 22.5 },
@@ -316,4 +372,247 @@
             { name: '天津', top: 40, left: 66.5 },
             { name: '青島', top: 46.5, left: 70.5 },
             { name: '大連', top: 40, left: 74.5 },
-            { name: '瀋陽', top: 32, left:
+            { name: '瀋陽', top: 32, left: 77 },
+            { name: '哈爾濱', top: 19, left: 81 }
+        ];
+
+        const targetCities = cityData.map(city => city.name);
+        const quizData = cityData;
+
+        let currentAttempt = 1;
+        const maxScore = targetCities.length;
+
+        const sourceContainer = document.getElementById('source-container');
+        const mapContainer = document.getElementById('map-container');
+        const submitBtn = document.getElementById('submit-btn');
+        const correctBtn = document.getElementById('correct-btn');
+        const retryBtn = document.getElementById('retry-btn');
+        const scoreDisplay = document.getElementById('score-display');
+        const attemptCountSpan = document.getElementById('attempt-count');
+
+        // --- 新增：狀態變數 ---
+        let selectedDropZone = null;
+        let selectedCard = null;
+
+        // 初始化遊戲
+        function initGame() {
+            sourceContainer.innerHTML = '';
+            mapContainer.innerHTML = '';
+            const oldImg = mapContainer.querySelector('img');
+            if(oldImg) oldImg.remove();
+            clearSelections();
+
+            quizData.forEach(city => {
+                // 建立字卡 (不再是 draggable)
+                const card = document.createElement('div');
+                card.classList.add('card', `attempt-${currentAttempt}`);
+                card.id = 'city-' + city.name;
+                card.textContent = city.name;
+                sourceContainer.appendChild(card);
+
+                // 建立放置區域
+                const dropZone = document.createElement('div');
+                dropZone.classList.add('drop-zone');
+                dropZone.style.top = city.top + '%';
+                dropZone.style.left = city.left + '%';
+                
+                // 根據字數設定寬度
+                let width = 42; 
+                if (city.name.length > 3) width = 54;
+                if (city.name.length <= 2) width = 32;
+                dropZone.style.width = width + 'px';
+                dropZone.style.marginLeft = -(width / 2) + 'px';
+                dropZone.style.marginTop = '-10px';
+
+                dropZone.dataset.correctCity = city.name;
+                
+                const answerLabel = document.createElement('div');
+                answerLabel.classList.add('answer-label');
+                answerLabel.textContent = city.name;
+                dropZone.appendChild(answerLabel);
+
+                mapContainer.appendChild(dropZone);
+            });
+
+            setupInteractions();
+            updateAttemptUI();
+        }
+
+        // --- 新增：清除所有選取狀態 ---
+        function clearSelections() {
+            if (selectedDropZone) selectedDropZone.classList.remove('selected');
+            if (selectedCard) selectedCard.classList.remove('selected');
+            selectedDropZone = null;
+            selectedCard = null;
+        }
+
+        // --- 新增：設定點擊互動事件 ---
+        function setupInteractions() {
+            const cards = document.querySelectorAll('.card');
+            const dropZones = document.querySelectorAll('.drop-zone');
+
+            // 來源區字卡的點擊事件
+            cards.forEach(card => {
+                card.addEventListener('click', (e) => {
+                    // 如果卡片已經在題框中，單點不執行動作 (等待雙擊清除)
+                    if (card.parentElement.classList.contains('drop-zone')) return;
+
+                    e.stopPropagation(); // 防止事件冒泡
+
+                    if (selectedDropZone) {
+                        // 規則 1: 若已選題框，再點字卡 -> 配對
+                        moveCardToZone(card, selectedDropZone);
+                    } else {
+                        // 規則 2/5: 若沒選題框，或點選另一個字卡 -> 選取此字卡
+                        if (selectedCard) selectedCard.classList.remove('selected');
+                        selectedCard = card;
+                        card.classList.add('selected');
+                    }
+                });
+            });
+
+            // 題框的點擊事件
+            dropZones.forEach(zone => {
+                zone.addEventListener('click', (e) => {
+                    // 如果題框已經鎖定(答對)，則忽略
+                    if (zone.classList.contains('correct')) return;
+                    
+                    // 如果題框內已有字卡，單點不執行動作
+                    if (zone.querySelector('.card')) return;
+
+                    e.stopPropagation();
+
+                    if (selectedCard) {
+                         // 規則 2: 若已選字卡，再點題框 -> 配對
+                        moveCardToZone(selectedCard, zone);
+                    } else {
+                        // 規則 1/4: 若沒選字卡，或點選另一個題框 -> 選取此題框
+                        if (selectedDropZone) selectedDropZone.classList.remove('selected');
+                        selectedDropZone = zone;
+                        zone.classList.add('selected');
+                    }
+                });
+            });
+
+            // 規則 3: 已貼到題框中字卡的雙擊事件 (清除答案)
+            // 使用事件委派，監聽 mapContainer
+            mapContainer.addEventListener('dblclick', (e) => {
+                const card = e.target.closest('.card');
+                // 確保點到的是卡片，且卡片在題框內，且題框未鎖定
+                if (card && card.parentElement.classList.contains('drop-zone') && !card.parentElement.classList.contains('correct')) {
+                    e.stopPropagation();
+                    e.preventDefault(); // 防止行動裝置雙擊縮放
+                    
+                    // 將卡片移回來源區
+                    sourceContainer.appendChild(card);
+                    resetCardColor(card);
+                }
+            });
+
+            // 點擊空白處取消選取
+            document.addEventListener('click', clearSelections);
+        }
+
+        // --- 新增：執行配對動作 ---
+        function moveCardToZone(card, zone) {
+            resetCardColor(card);
+            zone.appendChild(card);
+            clearSelections();
+        }
+        
+        function resetCardColor(card) {
+             card.classList.remove('attempt-1', 'attempt-2', 'attempt-3', 'attempt-4');
+             let colorClass = `attempt-${currentAttempt > 4 ? 4 : currentAttempt}`;
+             card.classList.add(colorClass);
+        }
+
+        function updateAttemptUI() {
+            attemptCountSpan.textContent = currentAttempt;
+            let color = 'blue';
+            if (currentAttempt === 2) color = 'green';
+            else if (currentAttempt === 3) color = 'orange';
+            else if (currentAttempt >= 4) color = 'hotpink';
+            attemptCountSpan.style.color = color;
+        }
+
+        // 批閱功能
+        submitBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            clearSelections(); // 批閱前清除選取狀態
+
+            let score = 0;
+            const dropZones = document.querySelectorAll('.drop-zone');
+            let allFilled = true;
+
+            dropZones.forEach(zone => {
+                zone.classList.remove('correct', 'incorrect');
+                const card = zone.querySelector('.card');
+                const correctCity = zone.dataset.correctCity;
+
+                if (card) {
+                    if (card.textContent === correctCity) {
+                        score++;
+                        zone.classList.add('correct');
+                        // 答對的卡片不再響應滑鼠事件，避免被點選或雙擊
+                        card.style.pointerEvents = 'none';
+                    } else {
+                        zone.classList.add('incorrect');
+                    }
+                } else {
+                    zone.classList.add('incorrect');
+                    allFilled = false;
+                }
+            });
+
+            scoreDisplay.textContent = `得分：${score} / ${maxScore}`;
+            submitBtn.style.display = 'none';
+            correctBtn.style.display = 'inline-block';
+            retryBtn.style.display = 'inline-block';
+        });
+
+        // 錯題訂正功能
+        correctBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            currentAttempt++;
+            updateAttemptUI();
+            
+            const dropZones = document.querySelectorAll('.drop-zone');
+            dropZones.forEach(zone => {
+                if (zone.classList.contains('incorrect')) {
+                    const card = zone.querySelector('.card');
+                    if (card) {
+                        sourceContainer.appendChild(card);
+                        resetCardColor(card);
+                    }
+                    zone.classList.remove('incorrect');
+                }
+            });
+            
+            const sourceCards = sourceContainer.querySelectorAll('.card');
+            sourceCards.forEach(drag => {
+                 resetCardColor(drag);
+            });
+
+            scoreDisplay.textContent = '訂正中...';
+            submitBtn.style.display = 'inline-block';
+            correctBtn.style.display = 'none';
+        });
+
+        // 重新挑戰功能
+        retryBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (confirm("確定要重新開始嗎？所有進度將會遺失。")) {
+                currentAttempt = 1;
+                scoreDisplay.textContent = '尚未批閱';
+                submitBtn.style.display = 'inline-block';
+                correctBtn.style.display = 'none';
+                retryBtn.style.display = 'none';
+                initGame();
+            }
+        });
+
+        initGame();
+
+    </script>
+</body>
+</html>
